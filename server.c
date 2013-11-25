@@ -16,7 +16,7 @@
 
 #define MAX_THREADS 100
 #define MAX_QUEUE_SIZE 100
-#define MAX_REQUEST_LENGTH 64
+#define MAX_REQUEST_LENGTH 1024
 
 //Structure for queue.
 typedef struct request_queue
