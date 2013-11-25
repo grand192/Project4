@@ -25,19 +25,44 @@ typedef struct request_queue
 	char	m_szRequest[MAX_REQUEST_LENGTH];
 } request_queue_t;
 
+typedef struct Q
+{
+	int is_empty;
+	request_queue_t queue[MAX_QUEUE_SIZE];
+}
+
 // Dispatcher thread function
 void * dispatch(void * arg)
 {
-	printf ("dispatcher\n");	
-	return NULL;
+	request_queue_t request;
+	while(1){
+		request.m_socket = accept_connection(); 
+		get_request(request.m_socket, request.m_szRequest); 
+	}
+}
+
+int parseContentType(char* file){
+	int len = strlen(file);
+	char substr[5];
+	strncpy(substr, file+(len-6), 5);//not sure if this will work right
+	if ( strcmp(substr, ".html") || strcmp(substr+1 , ".htm")
+		return 0;
+	else if ( strcmp(substr+1 , ".jpg") )
+		return 1;
+	else if (strcmp(substr+1 , ".gif") )
+		return 2;
+	else return 3;
 }
 
 // Worker thread function
 void * worker(void * arg)
 {
-	printf ("worker\n");
-	return NULL;
+	request_queue_t job;
+	while(1){
+		return_result(job.m_socket, "text/html", /*location of read in file*/, /*amount read in from file*/);
+	}
 }
+
 
 int main(int argc, char **argv)
 {
