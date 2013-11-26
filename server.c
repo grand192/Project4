@@ -28,6 +28,9 @@ typedef struct request_queue
 
 request_queue_t Q[MAX_QUEUE_SIZE];
 pthread_mutex_t q_mtx = PTHREAD_MUTEX_INITIALIZER;
+FILE *web_server_log; 
+
+
 
 void initialize (request_queue_t *Q){
 	int i;
@@ -137,16 +140,21 @@ void * worker(void * arg)
 	ssize_t bytes_read;
 	int num_jobs = 0;
 	int fd; 
+	int offset = 0;
 
 	while(1){
 		if( retrieve_request (&job)) {
-			//why is open failing?
-			//are we supposed to read from the job.m_socket fd?
-			fd = open(job.m_szRequest, O_RDONLY);
+			if (job.m_szRequest[0] == '/'){
+				offset=1;
+			}
+			fd = open(job.m_szRequest + offset, O_RDONLY);
 			printf("Read socket: %d\n", fd );
 			if( (bytes_read = read(fd, buf, MAX_FILE_SIZE) ) == -1){
+				if(!fprintf(web_server_log,"[%d][%d][%d][%s][%s]\n", 0, 0, job.m_socket, job.m_szRequest, "Error" )){
+					perror("fprintf failed: ");
+				}
 				return_error(job.m_socket, buf);
-				printf("File could not be read.");
+				perror("File could not be read.");
 			}
 			else {
 				printf("Retrieved request!\n");
@@ -169,7 +177,10 @@ void * worker(void * arg)
 						perror("retrieve_request failed miserably.");
 				}
 				printf("%s\n",contentType );
-				return_result(job.m_socket, contentType, job.m_szRequest, bytes_read);
+				if(!fprintf(web_server_log,"[%d][%d][%d][%s][%d]\n", 0, 0, job.m_socket, job.m_szRequest, bytes_read )){
+					perror("fprintf failed: ");
+				}
+				return_result(job.m_socket, contentType, buf, bytes_read);
 				num_jobs++; //increment job count
 			}
 		}
@@ -178,7 +189,8 @@ void * worker(void * arg)
 
 
 int main(int argc, char **argv)
-{
+{	
+
 	//Error check first.
 	if(argc != 6 && argc != 7)
 	{
@@ -219,6 +231,8 @@ int main(int argc, char **argv)
 	Q[0].m_socket = 5;
 	printf("Is it empty? : %d\n", isEmpty(Q));
 	*/
+	web_server_log = fopen("web_server_log","w"); 
+	fprintf(web_server_log,"This is just an example :)"); 
 
 
 	// Create thread ID's starting from 1 to num_dispatcher
@@ -236,6 +250,6 @@ int main(int argc, char **argv)
 	}
 	
 	while(1);
-
+	fclose(web_server_log); 
 	return 0;
 }

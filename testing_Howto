@@ -8,7 +8,7 @@ directory. Run your webserver using the following command
 For example, to run the web server at port 9000, with root directory "/home/student/joe/testing" with 100 dispatch, worker and prefetch threads,
 queue length 100, in CRF mode and 100 cache_entries run the following command
 
-./web_server_http 9000 /home/student/joe/testing 100 100 100 100 1 100
+./web_server_http 9000 /home/acook/4061/Project4 100 100 100 100 
 
 
 Open another terminal and issue the following command,
@@ -16,7 +16,7 @@ Open another terminal and issue the following command,
 wget -i <path-to-urls>/urls -O results 
 
 In our case we should run
-wget -i /home/student/joe/testing/urls -O myres
+wget -i /home/acook/4061/Project4/urls -O myres
 
 The above command will ask wget to fetch all the URLs listed
 on the file named "urls" that you downloaded from the assignment page.
