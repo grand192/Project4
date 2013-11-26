@@ -55,6 +55,8 @@ int isEmpty(request_queue_t *Q){
 int addRequest(request_queue_t request){
 	pthread_mutex_lock(&q_mtx);
 	int i;
+	printf("Request socket: %d\n", request.m_socket );
+
 	for (i = 0; i < MAX_QUEUE_SIZE; i++){
 		if (Q[i].m_socket == -1){
 			Q[i].m_socket = request.m_socket;
@@ -66,6 +68,8 @@ int addRequest(request_queue_t request){
 			break;
 		}
 	}
+		printf("Request socket: %d\n", request.m_socket );
+	
 	pthread_mutex_unlock(&q_mtx);
 	return 0;
 }
@@ -80,9 +84,12 @@ int retrieve_request(request_queue_t *request){
 			request->m_socket = Q[i].m_socket;
 			if(memcpy(request->m_szRequest, Q[i].m_szRequest,  MAX_REQUEST_LENGTH) == NULL){
 				pthread_mutex_unlock(&q_mtx);
-				return -1;
+				printf("memcpy failed.\n");
+				return 0;
 			}	
 			Q[i].m_socket = -1;
+			printf("%s\n", request->m_szRequest);
+			pthread_mutex_unlock(&q_mtx);
 			return 1; //shows we retrieved a request
 		}
 	}
@@ -96,6 +103,7 @@ void * dispatch(void * arg)
 	request_queue_t request;
 	while(1){
 		request.m_socket = accept_connection(); 
+		printf("Request socket: %d\n", request.m_socket );
 		get_request( request.m_socket, request.m_szRequest); 
 		if ( addRequest(request) == -1){
 			printf("The request could not be added by dispatcher of pthread_id: %d\n", pthread_self());
@@ -106,7 +114,7 @@ void * dispatch(void * arg)
 int parseContentType(char* file){
 	int len = strlen(file);
 	char substr[5];
-	strncpy(substr, file+(len-6), 5);//not sure if this will work right
+	strcpy(substr, file+(len-6));//not sure if this will work right
 	if ( strcmp(substr, ".html") || strcmp(substr+1 , ".htm") )
 		return 0;
 	else if ( strcmp(substr+1 , ".jpg") )
@@ -121,33 +129,38 @@ void * worker(void * arg)
 {
 	request_queue_t job;
 	char buf[MAX_FILE_SIZE];
-	int bytes_read;
+	char contentType[50];
+	ssize_t bytes_read;
 	int num_jobs = 0;
 
 	while(1){
 		if( retrieve_request (&job)) {
-			if( bytes_read = read(job.m_socket, buf, MAX_FILE_SIZE) == -1){
-				perror("File could not be read.");
+			printf("Made it!\n");
+			if( (bytes_read = read(job.m_socket, buf, MAX_FILE_SIZE) ) == -1){
+				printf("File could not be read.");
 			}
 			else {
+				printf("Retrieved request!\n");
 				switch ( parseContentType(job.m_szRequest) )
 				{
 					case 0:
-						return_result(job.m_socket, "text/html", buf, bytes_read);
+						strcpy(contentType, "text/html");
 						break;
 					case 1:
-						return_result(job.m_socket, "image/jpeg", buf, bytes_read);
+						strcpy(contentType, "image/jpeg");
 						break;
 					case 2:
-						return_result(job.m_socket, "image/gif", buf, bytes_read);
+						strcpy(contentType, "image/gif");
 						break;
 					case 3:
-						return_result(job.m_socket, "text/plain", buf, bytes_read);
+						strcpy(contentType, "text/plain");
 						break;
 					default:
 						perror("retrieve_request failed miserably.");
 				}
-			num_jobs++; //increment job count
+				printf("%s\n",contentType );
+				return_result(job.m_socket, contentType, buf, bytes_read);
+				num_jobs++; //increment job count
 			}
 		}
 	}
