@@ -28,6 +28,7 @@ typedef struct request_queue
 
 request_queue_t Q[MAX_QUEUE_SIZE];
 pthread_mutex_t q_mtx = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t log_mtx = PTHREAD_MUTEX_INITIALIZER;
 FILE *web_server_log; 
 
 
@@ -150,9 +151,13 @@ void * worker(void * arg)
 			fd = open(job.m_szRequest + offset, O_RDONLY);
 			printf("Read socket: %d\n", fd );
 			if( (bytes_read = read(fd, buf, MAX_FILE_SIZE) ) == -1){
+				pthread_mutex_lock(&log_mtx);
+				web_server_log = fopen("web_server_log","a");
 				if(!fprintf(web_server_log,"[%d][%d][%d][%s][%s]\n", 0, 0, job.m_socket, job.m_szRequest, "Error" )){
 					perror("fprintf failed: ");
 				}
+				fclose(web_server_log); 
+				pthread_mutex_unlock(&log_mtx);
 				return_error(job.m_socket, buf);
 				perror("File could not be read.");
 			}
@@ -177,9 +182,13 @@ void * worker(void * arg)
 						perror("retrieve_request failed miserably.");
 				}
 				printf("%s\n",contentType );
+				pthread_mutex_lock(&log_mtx);
+				web_server_log = fopen("web_server_log","a");
 				if(!fprintf(web_server_log,"[%d][%d][%d][%s][%d]\n", 0, 0, job.m_socket, job.m_szRequest, bytes_read )){
 					perror("fprintf failed: ");
 				}
+				fclose(web_server_log); 
+				pthread_mutex_unlock(&log_mtx);
 				return_result(job.m_socket, contentType, buf, bytes_read);
 				num_jobs++; //increment job count
 			}
@@ -231,8 +240,6 @@ int main(int argc, char **argv)
 	Q[0].m_socket = 5;
 	printf("Is it empty? : %d\n", isEmpty(Q));
 	*/
-	web_server_log = fopen("web_server_log","w"); 
-	fprintf(web_server_log,"This is just an example :)"); 
 
 
 	// Create thread ID's starting from 1 to num_dispatcher
@@ -250,6 +257,5 @@ int main(int argc, char **argv)
 	}
 	
 	while(1);
-	fclose(web_server_log); 
 	return 0;
 }
