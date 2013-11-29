@@ -189,6 +189,7 @@ void * worker(void * arg)
 				}
 				fclose(web_server_log); 
 				pthread_mutex_unlock(&log_mtx);
+				close(fd);
 				return_result(job.m_socket, contentType, buf, bytes_read);
 				num_jobs++; //increment job count
 			}
@@ -240,7 +241,12 @@ int main(int argc, char **argv)
 	Q[0].m_socket = 5;
 	printf("Is it empty? : %d\n", isEmpty(Q));
 	*/
-
+	
+	web_server_log = fopen("web_server_log","w");
+	if(!fprintf(web_server_log, " " )){
+		perror("failed to clear log: ");
+	}
+	fclose(web_server_log);
 
 	// Create thread ID's starting from 1 to num_dispatcher
 	for (i = 1; i <= num_dispatcher; i++){
