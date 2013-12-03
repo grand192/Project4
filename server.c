@@ -17,7 +17,7 @@
 #define MAX_THREADS 100
 #define MAX_QUEUE_SIZE 100
 #define MAX_REQUEST_LENGTH 1024
-#define MAX_FILE_SIZE 10*4096 //40kb
+#define MAX_FILE_SIZE 100*4096 //400kb
 
 //Structure for queue.
 typedef struct request_queue
@@ -32,7 +32,9 @@ pthread_mutex_t log_mtx = PTHREAD_MUTEX_INITIALIZER;
 FILE *web_server_log; 
 
 
-
+/* ///////////////////////////////////////
+/////////QUEUE IMPLEMENTATION ///////////
+/////////////////////////////////////////*/
 void initialize (request_queue_t *Q){
 	int i;
 	pthread_mutex_lock(&q_mtx);
@@ -59,20 +61,17 @@ int isEmpty(request_queue_t *Q){
 int addRequest(request_queue_t request){
 	pthread_mutex_lock(&q_mtx);
 	int i;
-	printf("Request socket: %d\n", request.m_socket );
 
 	for (i = 0; i < MAX_QUEUE_SIZE; i++){
 		if (Q[i].m_socket == -1){
 			Q[i].m_socket = request.m_socket;
-			printf("Added a request\n");
 			if(memcpy(Q[i].m_szRequest, request.m_szRequest,  MAX_REQUEST_LENGTH) == NULL){
 				pthread_mutex_unlock(&q_mtx);
-				return -1;
+				return -1; //no open positions in queue
 			}	
 			break;
 		}
 	}
-	printf("Request socket: %d\n", request.m_socket );
 
 	pthread_mutex_unlock(&q_mtx);
 	return 0;
@@ -83,18 +82,13 @@ int retrieve_request(request_queue_t *request){
 	int i;
 	for (i = 0; i < MAX_QUEUE_SIZE; i++){
 		if (Q[i].m_socket != -1){
-			printf("Retrieved a request\n");
-
 			request->m_socket = Q[i].m_socket;
-			printf("Retrieved socket: %d\n", request->m_socket );
-
 			if(memcpy(request->m_szRequest, Q[i].m_szRequest,  MAX_REQUEST_LENGTH) == NULL){
 				pthread_mutex_unlock(&q_mtx);
 				printf("memcpy failed.\n");
 				return 0;
 			}	
 			Q[i].m_socket = -1;
-			printf("%s\n", request->m_szRequest);
 			pthread_mutex_unlock(&q_mtx);
 			return 1; //shows we retrieved a request
 		}
@@ -102,6 +96,8 @@ int retrieve_request(request_queue_t *request){
 	pthread_mutex_unlock(&q_mtx);
 	return 0;
 }
+//////////////////////////////////////////////////
+//////////////////////////////////////////////////
 
 // Dispatcher thread function
 void * dispatch(void * arg)
@@ -109,9 +105,7 @@ void * dispatch(void * arg)
 	request_queue_t request;
 	while(1){
 		request.m_socket = accept_connection(); 
-		printf("Request socket: %d\n", request.m_socket );
 		get_request( request.m_socket, request.m_szRequest); 
-		printf("The request was: %s \n", request.m_szRequest );
 		if ( addRequest(request) == -1){
 			printf("The request could not be added by dispatcher of pthread_id: %d\n", pthread_self());
 		}
@@ -122,7 +116,6 @@ int parseContentType(char* file){
 	int len = strlen(file);
 	char substr[5];
 	strcpy(substr, file+(len-5));//not sure if this will work right
-	printf("Substring: %s\n", substr);
 	if ( !strcmp(substr, ".html") || !strcmp(substr+1 , ".htm") )
 		return 0;
 	else if ( !strcmp( substr+1 , ".jpg") )
@@ -145,15 +138,17 @@ void * worker(void * arg)
 
 	while(1){
 		if( retrieve_request (&job)) {
+			num_jobs++; //increment job count
 			if (job.m_szRequest[0] == '/'){
 				offset=1;
 			}
 			fd = open(job.m_szRequest + offset, O_RDONLY);
-			printf("Read socket: %d\n", fd );
 			if( (bytes_read = read(fd, buf, MAX_FILE_SIZE) ) == -1){
 				pthread_mutex_lock(&log_mtx);
-				web_server_log = fopen("web_server_log","a");
-				if(!fprintf(web_server_log,"[%d][%d][%d][%s][%s]\n", 0, 0, job.m_socket, job.m_szRequest, "Error" )){
+				if( (web_server_log = fopen("web_server_log","a") ) == NULL){
+					perror("Failed to open file");
+				}
+				if(!fprintf(web_server_log,"[%u][%d][%d][%s][%d]\n", pthread_self(), num_jobs, job.m_socket, job.m_szRequest, "File could not be read." )){
 					perror("fprintf failed: ");
 				}
 				fclose(web_server_log); 
@@ -162,8 +157,6 @@ void * worker(void * arg)
 				perror("File could not be read.");
 			}
 			else {
-				printf("Retrieved request!\n");
-				printf("Parse Content return: %d \n", parseContentType(job.m_szRequest));
 				switch ( parseContentType(job.m_szRequest) )
 				{
 					case 0:
@@ -181,17 +174,17 @@ void * worker(void * arg)
 					default:
 						perror("retrieve_request failed miserably.");
 				}
-				printf("%s\n",contentType );
 				pthread_mutex_lock(&log_mtx);
-				web_server_log = fopen("web_server_log","a");
-				if(!fprintf(web_server_log,"[%d][%d][%d][%s][%d]\n", 0, 0, job.m_socket, job.m_szRequest, bytes_read )){
+				if( (web_server_log = fopen("web_server_log","a") ) == NULL){
+					perror("Failed to open file");
+				}
+				if(!fprintf(web_server_log,"[%u][%d][%d][%s][%d]\n", pthread_self(), num_jobs, job.m_socket, job.m_szRequest, bytes_read )){
 					perror("fprintf failed: ");
 				}
 				fclose(web_server_log); 
 				pthread_mutex_unlock(&log_mtx);
 				close(fd);
 				return_result(job.m_socket, contentType, buf, bytes_read);
-				num_jobs++; //increment job count
 			}
 		}
 	}
@@ -225,41 +218,30 @@ int main(int argc, char **argv)
 	if ( chdir(path) == -1){
 		perror("Failed to change directories. Exit.");
 		exit(-1);
-	}
-
-	printf("Call init() first and make a dispather and worker threads\n");
-	
+	}	
 	//Initialize the server with the port number passed in
 	init(port);
 	int num_total_threads = num_dispatcher + num_workers;
 	int i;
 	initialize(Q);
-
-	/*
-	printf("Q's first value: %d\n", Q[0].m_socket );
-	printf("Is it empty? : %d\n", isEmpty(Q));
-	Q[0].m_socket = 5;
-	printf("Is it empty? : %d\n", isEmpty(Q));
-	*/
 	
 	web_server_log = fopen("web_server_log","w");
-	if(!fprintf(web_server_log, " " )){
+	if(fprintf(web_server_log, "" ) < 0){
 		perror("failed to clear log: ");
 	}
 	fclose(web_server_log);
 
 	// Create thread ID's starting from 1 to num_dispatcher
-	for (i = 1; i <= num_dispatcher; i++){
+	for (i = 0; i < num_dispatcher; i++){
 		pthread_t tid;
-		tid = i;
 		pthread_create(&tid, NULL, &dispatch, NULL);
 	}
 
 	// Create unique thread ID's starting from num_dispatcher
-	for (i = num_dispatcher+1; i <= num_total_threads; i++){
+	for (i = 0; i < num_workers; i++){
 		pthread_t tid;
-		tid = i;
 		pthread_create(&tid, NULL, &worker, NULL);
+
 	}
 	
 	while(1);
