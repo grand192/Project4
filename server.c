@@ -1,8 +1,9 @@
-/* csci4061 F2013 Assignment 4 
-* section: one_digit_number 
-* date: mm/dd/yy 
-* names: Name of each member of the team (for partners)
-* UMN Internet ID, Student ID (xxxxxxxx, 4444444), (for partners)
+/*
+* CSci4061 F2013 Assignment 4
+* section: 3
+* date: 12/02/13
+* name: Devon Grandahl, Alex Cook
+* id: 4260296, 4123940 
 */
 
 #include <stdio.h>
